@@ -132,7 +132,7 @@ git clone https://github.com/WxylkxyZz/ds-vision-skill.git ~/.codex/skills/ds-vi
 | `mineru` | PDF/文档解析 | `MINERU_TOKEN` | 可选 |
 | `tesseract` | 本地离线 OCR | 系统安装 tesseract + `pip install pytesseract Pillow` | 可选 |
 
-> **模型可覆盖**：`GLM_FAST_MODEL`（默认 `glm-4v-flash`）、`GLM_THINKING_MODEL`（默认 `glm-4.1v-thinking-flash`）、`VISION_LOCAL_MODEL`（默认 `qwen2.5-vl:3b`）。
+> **模型可覆盖**：`GLM_FAST_MODEL`（默认 `GLM-4.6V-Flash`）、`GLM_THINKING_MODEL`（默认 `glm-4.1v-thinking-flash`）、`VISION_LOCAL_MODEL`（默认 `qwen2.5-vl:3b`）。
 
 ## 🛠️ 使用
 
@@ -168,12 +168,12 @@ python scripts/run.py <PDF> --intent document --json
 ```json
 {
   "task_type": "image_reasoning | document_parsing | ocr",
-  "tool_used": "glm:glm-4v-flash",
+  "tool_used": "glm:GLM-4.6V-Flash",
   "confidence": "high | medium | low",
   "result": "识别、解析或理解后的内容",
   "metadata": {
     "channel": "glm",
-    "model": "glm-4v-flash",
+    "model": "GLM-4.6V-Flash",
     "latency_ms": 3200,
     "cached": false,
     "attempts": []

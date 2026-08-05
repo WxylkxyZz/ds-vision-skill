@@ -49,7 +49,7 @@ def is_configured(name: str) -> bool:
 @dataclass
 class GLMConfig:
     api_key: str = ""
-    fast_model: str = "glm-4v-flash"
+    fast_model: str = "GLM-4.6V-Flash"
     thinking_model: str = "glm-4.1v-thinking-flash"
     base_url: str = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 

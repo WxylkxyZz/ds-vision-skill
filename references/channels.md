@@ -6,7 +6,7 @@
 
 | 通道 | 类别 | 默认模型 | 环境变量 | 备注 |
 |---|---|---|---|---|
-| `glm` | 简单视觉理解 | `glm-4v-flash`（默认） | `GLM_API_KEY` | 快路径 |
+| `glm` | 简单视觉理解 | `GLM-4.6V-Flash`（默认） | `GLM_API_KEY` | 快路径 |
 | `glm-thinking` | 复杂视觉推理 | `glm-4.1v-thinking-flash`（默认） | `GLM_API_KEY` | 图表、数学、复杂 UI |
 | `custom` | OpenAI 兼容中转 | `VISION_CUSTOM_MODEL` | `VISION_CUSTOM_BASE_URL` + `VISION_CUSTOM_API_KEY` + `VISION_CUSTOM_MODEL` | 私有或第三方服务 |
 
@@ -45,7 +45,7 @@
 ```bash
 # .env 示例
 GLM_API_KEY=
-GLM_FAST_MODEL=glm-4v-flash
+GLM_FAST_MODEL=GLM-4.6V-Flash
 GLM_THINKING_MODEL=glm-4.1v-thinking-flash
 BAIDU_API_KEY=
 BAIDU_SECRET_KEY=
