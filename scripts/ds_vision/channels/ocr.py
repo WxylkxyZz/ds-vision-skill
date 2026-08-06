@@ -1,6 +1,6 @@
-"""OCR 通道：百度 OCR（云端） + Tesseract（本地离线兜底）。
+"""OCR 通道：百度 OCR（云端）。
 
-降级链：baidu-ocr -> tesseract-ocr。
+OCR 意图失败时由 router 退回 GLM 视觉推理兜底。
 百度 access token 自动缓存到 ~/.ds-vision-py/baidu_token.json。
 """
 
@@ -10,18 +10,22 @@ import base64
 import json
 import time
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Tuple
 
 import requests
 
 from .. import envelope
-from ..config import load_config
-
-EXIT_OK = 0
-EXIT_GENERIC = 1
-EXIT_AUTH = 2
-EXIT_RATE_LIMIT = 3
-EXIT_NETWORK = 4
+from ..cache import Cache
+from ..config import Config
+from ..envelope import (
+    Envelope,
+    EXIT_AUTH,
+    EXIT_GENERIC,
+    EXIT_NETWORK,
+    EXIT_OK,
+    EXIT_RATE_LIMIT,
+)
+from .base import BaseChannel
 
 # 百度 OCR 端点
 BAIDU_TOKEN_URL = "https://aip.baidubce.com/oauth/2.0/token"
@@ -52,7 +56,9 @@ def _get_baidu_token(api_key: str, secret_key: str, cache_file: str) -> str:
         raise RuntimeError(f"百度 token 获取失败: {resp.status_code}")
     data = resp.json()
     if "access_token" not in data:
-        raise RuntimeError(f"百度 token 响应异常: {data.get('error_description', data)}")
+        raise RuntimeError(
+            f"百度 token 响应异常: {data.get('error_description', data)}"
+        )
     token_cache.parent.mkdir(parents=True, exist_ok=True)
     token_cache.write_text(
         json.dumps(
@@ -66,100 +72,106 @@ def _get_baidu_token(api_key: str, secret_key: str, cache_file: str) -> str:
     return data["access_token"]
 
 
-def baidu_ocr(image_path: str, accurate: bool = False) -> Tuple[Optional[envelope.Envelope], int]:
-    cfg = load_config()["baidu_ocr"]
-    if not (cfg.api_key and cfg.secret_key):
-        return envelope.fail("ocr", result="未配置 BAIDU_API_KEY / BAIDU_SECRET_KEY"), EXIT_AUTH
+class BaiduOCRChannel(BaseChannel):
+    """百度 OCR 通道。accurate=True 使用高精度接口。"""
 
-    t0 = time.time()
-    try:
-        token = _get_baidu_token(cfg.api_key, cfg.secret_key, cfg.token_cache_file)
-    except Exception as e:
-        return envelope.fail("ocr", result=f"百度 token 失败: {e}"), EXIT_AUTH
+    name = "baidu-ocr"
+    task_type = "ocr"
 
-    api = "accurate_basic" if accurate else "general_basic"
-    img_b64 = base64.b64encode(Path(image_path).read_bytes()).decode("ascii")
+    def __init__(self, accurate: bool = False):
+        self.accurate = accurate
 
-    try:
-        resp = requests.post(
-            BAIDU_OCR_URL.format(api=api),
-            params={"access_token": token},
-            data={"image": img_b64, "language_type": "CHN_ENG"},
-            timeout=60,
-        )
-    except requests.RequestException as e:
-        return envelope.fail("ocr", result=f"百度 OCR 网络错误: {e}"), EXIT_NETWORK
+    def attempt(
+        self,
+        path: str,
+        *,
+        prompt: str = "",
+        cfg: Config,
+        cache: Cache,
+        no_cache: bool = False,
+        **kwargs: Any,
+    ) -> Tuple[Envelope, int]:
+        oc = cfg.baidu_ocr
+        if not (oc.api_key and oc.secret_key):
+            return (
+                envelope.fail(
+                    "ocr",
+                    result="未配置 BAIDU_API_KEY / BAIDU_SECRET_KEY",
+                    code=EXIT_AUTH,
+                ),
+                EXIT_AUTH,
+            )
 
-    if resp.status_code in (401, 403):
-        return envelope.fail("ocr", result="百度 OCR 认证失败"), EXIT_AUTH
-    if resp.status_code == 429:
-        return envelope.fail("ocr", result="百度 OCR 限流"), EXIT_RATE_LIMIT
+        t0 = time.time()
+        try:
+            token = _get_baidu_token(oc.api_key, oc.secret_key, oc.token_cache_file)
+        except Exception as e:
+            return (
+                envelope.fail("ocr", result=f"百度 token 失败: {e}", code=EXIT_AUTH),
+                EXIT_AUTH,
+            )
 
-    try:
-        data = resp.json()
-    except ValueError:
-        return envelope.fail("ocr", result="百度 OCR 响应解析失败"), EXIT_GENERIC
+        api = "accurate_basic" if self.accurate else "general_basic"
+        try:
+            img_b64 = base64.b64encode(Path(path).read_bytes()).decode("ascii")
+        except OSError as e:
+            return (
+                envelope.fail("ocr", result=f"读取图片失败: {e}", code=EXIT_GENERIC),
+                EXIT_GENERIC,
+            )
 
-    if "error_code" in data:
-        return envelope.fail("ocr", result=f"百度 OCR 错误: {data.get('error_msg')}"), EXIT_GENERIC
+        try:
+            resp = requests.post(
+                BAIDU_OCR_URL.format(api=api),
+                params={"access_token": token},
+                data={"image": img_b64, "language_type": "CHN_ENG"},
+                timeout=60,
+            )
+        except requests.RequestException as e:
+            return (
+                envelope.fail("ocr", result=f"百度 OCR 网络错误: {e}", code=EXIT_NETWORK),
+                EXIT_NETWORK,
+            )
 
-    words = [w.get("words", "") for w in data.get("words_result", []) if w.get("words")]
-    text = "\n".join(words)
-    env = envelope.ok(
-        "ocr",
-        tool="baidu-ocr",
-        result=text,
-        confidence="high" if text else "low",
-        metadata={
-            "api": api,
-            "latency_ms": int((time.time() - t0) * 1000),
-        },
-    )
-    return env, EXIT_OK
+        if resp.status_code in (401, 403):
+            return (
+                envelope.fail("ocr", result="百度 OCR 认证失败", code=EXIT_AUTH),
+                EXIT_AUTH,
+            )
+        if resp.status_code == 429:
+            return (
+                envelope.fail("ocr", result="百度 OCR 限流", code=EXIT_RATE_LIMIT),
+                EXIT_RATE_LIMIT,
+            )
 
+        try:
+            data = resp.json()
+        except ValueError:
+            return (
+                envelope.fail("ocr", result="百度 OCR 响应解析失败", code=EXIT_GENERIC),
+                EXIT_GENERIC,
+            )
 
-def tesseract_ocr(image_path: str) -> Tuple[Optional[envelope.Envelope], int]:
-    """本地离线 OCR，依赖系统安装的 tesseract。"""
-    try:
-        from pytesseract import image_to_string
-        from PIL import Image
-    except ImportError:
-        return envelope.fail(
+        if "error_code" in data:
+            return (
+                envelope.fail(
+                    "ocr",
+                    result=f"百度 OCR 错误: {data.get('error_msg')}",
+                    code=EXIT_GENERIC,
+                ),
+                EXIT_GENERIC,
+            )
+
+        words = [w.get("words", "") for w in data.get("words_result", []) if w.get("words")]
+        text = "\n".join(words)
+        env = envelope.ok(
             "ocr",
-            result="本地 OCR 需要安装 pytesseract + Pillow，且系统中需有 tesseract。",
-        ), EXIT_GENERIC
-
-    t0 = time.time()
-    try:
-        text = image_to_string(Image.open(image_path), lang="chi_sim+eng")
-    except Exception as e:
-        return envelope.fail("ocr", result=f"Tesseract OCR 失败: {e}"), EXIT_GENERIC
-
-    env = envelope.ok(
-        "ocr",
-        tool="tesseract-ocr",
-        result=text.strip(),
-        confidence="medium",
-        metadata={"latency_ms": int((time.time() - t0) * 1000)},
-    )
-    return env, EXIT_OK
-
-
-def ocr_chain(image_path: str, accurate: bool = False) -> Tuple[envelope.Envelope, int]:
-    """OCR 降级链：baidu -> tesseract。"""
-    attempts = []
-    env, code = baidu_ocr(image_path, accurate)
-    attempts.append({"name": "baidu-ocr", "code": code})
-    if code == EXIT_OK and env.result.strip():
-        env.metadata["attempts"] = attempts
+            tool="baidu-ocr",
+            result=text,
+            confidence="high" if text else "low",
+            metadata={
+                "api": api,
+                "latency_ms": int((time.time() - t0) * 1000),
+            },
+        )
         return env, EXIT_OK
-
-    env2, code2 = tesseract_ocr(image_path)
-    attempts.append({"name": "tesseract-ocr", "code": code2})
-    if code2 == EXIT_OK and env2.result.strip():
-        env2.metadata["attempts"] = attempts
-        return env2, EXIT_OK
-
-    # 全部失败：用视觉通道兜底由 router 处理，这里返回失败信息
-    result = env.result or env2.result or "OCR 全部通道失败"
-    return envelope.fail("ocr", result=result, attempts=attempts), EXIT_GENERIC

@@ -1,8 +1,8 @@
 """缓存模块：按请求指纹复用结果，降低重复调用成本。
 
-- 图片/文档：按内容 SHA256 指纹
 - VLM：按 (内容hash + prompt + 通道 + 模型) 组合指纹
-- 百度 OCR：access token 单独缓存
+- 文档：按 (内容hash + mode) 指纹（已接入 MinerUChannel）
+- 百度 OCR：access token 缓存在 ocr 模块单独处理
 """
 
 from __future__ import annotations
@@ -57,9 +57,9 @@ class Cache:
             pass
 
 
-def vlm_cache_key(cache: Cache, img_sha: str, prompt: str, channel: str, model: str) -> str:
+def vlm_cache_key(img_sha: str, prompt: str, channel: str, model: str) -> str:
     return _digest(img_sha, prompt, channel, model)
 
 
-def document_cache_key(cache: Cache, file_sha: str, mode: str) -> str:
+def document_cache_key(file_sha: str, mode: str) -> str:
     return _digest("doc", file_sha, mode)

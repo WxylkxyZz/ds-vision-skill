@@ -4,7 +4,7 @@ description: >
   为纯文本推理模型补充视觉能力。当用户提供图片、截图、照片、图表、架构图、UI/代码截图、
   数学题图片、扫描件、PDF、论文、报告或文档，并要求描述、理解、推理、阅读、OCR、提取文字、
   解析图表或分析内容时使用。自动路由：图片理解走 GLM(智谱)/自定义中转/本地 Ollama，文档解析
-  走 MinerU，纯文字识别走百度 OCR 或本地 Tesseract。所有工具输出标准 JSON，交主模型推理总结。
+  走 MinerU，纯文字识别走百度 OCR。所有工具输出标准 JSON，交主模型推理总结。
 ---
 
 # DS Vision Skill
@@ -27,22 +27,27 @@ python scripts/run.py <图片> --intent reason --complex --prompt "分析趋势"
 
 # 指定文档解析
 python scripts/run.py <PDF> --intent document --json
+
+# 查看通道配置/可用性
+python scripts/run.py --status
 ```
 
 各通道需要对应 API 密钥，通过环境变量或在项目 `.env` 中配置（见 references/channels.md）。
 
 ## 路由规则
 
-1. **PDF / 论文 / 报告 / 长文档 / 多页扫描**：`document` → MinerU（flash → extract），解析为 Markdown。
-2. **图片且需理解/推理**：`reason` → VLM，调用 `glm`（简单）或 `glm-thinking`（图表/数学/复杂 UI/代码截图）。
-3. **图片且只要文字**：`ocr` → 百度 OCR，失败回退本地 Tesseract。
-4. **无法判断时**：`auto` 按扩展名 + prompt 关键词自动判断。
+1. **PDF / 论文 / 报告 / 长文档 / 多页扫描**：`document` → MinerU（`vlm` → `pipeline` 降级），解析为 Markdown。`.html` 文件强制走 `MinerU-HTML` 管线。
+2. **图片且需理解/推理**：`reason` → VLM，调用 `glm`（简单，`GLM-4V-Flash`）或 `glm-thinking`（图表/数学/复杂 UI/代码截图，`glm-4.1v-thinking-flash`）。
+3. **图片且只要文字**：`ocr` → 百度 OCR，失败回退 GLM 视觉推理。
+4. **`.md` / `.txt`**：本地直接读取，不触云。
+5. **无法判断时**：`auto` 按扩展名 + prompt 关键词自动判断。
 
 ## 降级链
 
 - 视觉理解：`glm → glm-thinking → custom → local`
-- 文档解析：`mineru flash → mineru extract`
-- OCR：`baidu-ocr → tesseract-ocr → vision reasoning`
+- 复杂视觉推理：`glm-thinking → custom → local`
+- 文档解析：`mineru-vlm(推荐) → mineru-pipeline(默认管线回退)`；`.html` 文件强制 `MinerU-HTML`
+- OCR：`baidu-ocr → GLM 视觉推理`
 
 同一通道遇到 401 / 403 / 429、网络错误或空结果时**不要反复重试**，直接切换下一通道。
 
@@ -53,7 +58,7 @@ python scripts/run.py <PDF> --intent document --json
 ```json
 {
   "task_type": "image_reasoning | document_parsing | ocr",
-  "tool_used": "实际使用的通道或模型",
+  "tool_used": "实际使用的通道或模型（失败时为最后尝试的通道名）",
   "confidence": "high | medium | low",
   "result": "识别、解析或理解后的内容",
   "metadata": {}
@@ -65,14 +70,16 @@ python scripts/run.py <PDF> --intent document --json
 ## 缓存
 
 - VLM 按（图片 SHA256 + prompt + 通道 + 模型）组合指纹缓存，减少重复调用成本。
+- 文档按（内容 SHA256 + mode）指纹缓存。
 - 百度 OCR 缓存 access token。
-- 缓存位置：`~/.ds-vision-py/cache`。用 `--no-cache` 强制重新调用。
+- 缓存位置：`~/.ds-vision-py/cache`（可用 `DS_VISION_CACHE_DIR` 覆盖）。用 `--no-cache` 强制重新调用。
 
 ## 隐私
 
-云端通道会把图片/文档发送给对应服务商。用户明确关注隐私、合同、证件、医疗、财务等敏感内容时，优先使用本地 Tesseract OCR、本地模型，或先征求确认。
+云端通道会把图片/文档发送给对应服务商。用户明确关注隐私、合同、证件、医疗、财务等敏感内容时，优先使用本地模型（Ollama / LM Studio / llama.cpp），或先征求确认。
 
 ## 维护约定
 
 - Python 源码保持可读，中文通过参数传入。
-- 新增通道时优先接入 `ds_vision/router.py`，再补充 `references/channels.md`。
+- 新增通道时优先接入 `ds_vision/router.py`（构建降级链 `Chain`），再补充 `references/channels.md`。
+- MinerU 的 `mode → model_version` 映射见 `ds_vision/channels/document.py` 顶部 `MODE_TO_MODEL_VERSION`（经官方文档核实：`vlm`/`pipeline`/`MinerU-HTML`）；`.html` 文件强制走 `MinerU-HTML`。
