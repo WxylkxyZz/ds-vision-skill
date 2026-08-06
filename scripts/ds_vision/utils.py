@@ -1,7 +1,4 @@
-"""通用工具函数：意图判断、文件类型、base64 编码、大小。
-
-本地运行时端口探测见 :mod:`ds_vision.local_probe`。
-"""
+"""通用工具函数：意图判断、文件类型、base64 编码、大小。"""
 
 from __future__ import annotations
 

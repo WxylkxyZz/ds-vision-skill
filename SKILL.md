@@ -3,7 +3,7 @@ name: ds-vision
 description: >
   为纯文本推理模型补充视觉能力。当用户提供图片、截图、照片、图表、架构图、UI/代码截图、
   数学题图片、扫描件、PDF、论文、报告或文档，并要求描述、理解、推理、阅读、OCR、提取文字、
-  解析图表或分析内容时使用。自动路由：图片理解走 GLM(智谱)/自定义中转/本地 Ollama，文档解析
+  解析图表或分析内容时使用。自动路由：图片理解走 GLM(智谱)/自定义中转，文档解析
   走 MinerU，纯文字识别走百度 OCR。所有工具输出标准 JSON，交主模型推理总结。
 ---
 
@@ -44,8 +44,8 @@ python scripts/run.py --status
 
 ## 降级链
 
-- 视觉理解：`glm → glm-thinking → custom → local`
-- 复杂视觉推理：`glm-thinking → custom → local`
+- 视觉理解：`glm → glm-thinking → custom`
+- 复杂视觉推理：`glm-thinking → custom`
 - 文档解析：`mineru-vlm(推荐) → mineru-pipeline(默认管线回退)`；`.html` 文件强制 `MinerU-HTML`
 - OCR：`baidu-ocr → GLM 视觉推理`
 
@@ -76,7 +76,7 @@ python scripts/run.py --status
 
 ## 隐私
 
-云端通道会把图片/文档发送给对应服务商。用户明确关注隐私、合同、证件、医疗、财务等敏感内容时，优先使用本地模型（Ollama / LM Studio / llama.cpp），或先征求确认。
+云端通道会把图片/文档发送给对应服务商。用户明确关注隐私、合同、证件、医疗、财务等敏感内容时，先征求确认再上传。
 
 ## 维护约定
 

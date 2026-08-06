@@ -14,8 +14,7 @@ def test_r1_auto_png_reason(sample_image, tmp_cache_dir, cfg_factory):
     """auto + .png -> reason 意图（走 VLM）。"""
     cfg = cfg_factory(glm_api_key="k")
     cache = Cache(tmp_cache_dir)
-    with patch("ds_vision.router.probe_local_runtimes", lambda: []), \
-         patch("ds_vision.channels.vlm.requests.post") as mp:
+    with patch("ds_vision.channels.vlm.requests.post") as mp:
         from unittest.mock import MagicMock
         mp.return_value = MagicMock(
             status_code=200,
@@ -59,8 +58,7 @@ def test_r5_ocr_fail_fallback_vlm(sample_image, tmp_cache_dir, cfg_factory):
         status_code=200,
         json=MagicMock(return_value={"choices": [{"message": {"content": "视觉兜底"}}]}),
     )
-    with patch("ds_vision.router.probe_local_runtimes", lambda: []), \
-         patch("ds_vision.channels.vlm.requests.post", return_value=vlm_resp):
+    with patch("ds_vision.channels.vlm.requests.post", return_value=vlm_resp):
         env, code = route(sample_image, prompt="OCR 文字", intent="ocr", cfg=cfg, cache=cache, no_cache=True)
     assert code == 0
     assert env.result == "视觉兜底"
@@ -83,8 +81,7 @@ def test_r7_no_config_all_fail(sample_image, tmp_cache_dir, cfg_factory):
     """无任何 key 调图片 -> 全失败，tool_used 为最后通道名（非 router）。"""
     cfg = cfg_factory()  # 全空
     cache = Cache(tmp_cache_dir)
-    with patch("ds_vision.router.probe_local_runtimes", lambda: []):
-        env, code = route(sample_image, prompt="p", cfg=cfg, cache=cache, no_cache=True)
+    env, code = route(sample_image, prompt="p", cfg=cfg, cache=cache, no_cache=True)
     assert code != 0
     # 链中至少有 glm / glm-thinking 尝试
     assert env.metadata.get("attempts")
@@ -102,8 +99,7 @@ def test_r8_complex_uses_thinking_first(sample_image, tmp_cache_dir, cfg_factory
         status_code=200,
         json=MagicMock(return_value={"choices": [{"message": {"content": "thinking 结果"}}]}),
     )
-    with patch("ds_vision.router.probe_local_runtimes", lambda: []), \
-         patch("ds_vision.channels.vlm.requests.post", return_value=vlm_resp):
+    with patch("ds_vision.channels.vlm.requests.post", return_value=vlm_resp):
         env, code = route(sample_image, prompt="p", complex_=True, cfg=cfg, cache=cache, no_cache=True)
     assert code == 0
     assert env.tool_used.startswith("glm-thinking:")

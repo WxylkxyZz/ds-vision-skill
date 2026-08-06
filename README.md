@@ -32,7 +32,7 @@
 | **跨平台** | Windows / macOS / Linux 全支持 |
 | **零依赖** | 仅需 `Python 3.9+` 和 `requests`，无需 pip 安装 |
 | **成本优化** | 请求指纹缓存，避免重复调用付费 API |
-| **一键预检** | `--status` 查看各通道配置与本地运行时可用性 |
+| **一键预检** | `--status` 查看各通道配置可用性 |
 
 ## 🧠 工作原理
 
@@ -52,7 +52,7 @@
         │          │          │
      MinerU     百度 OCR    GLM 视觉
    vlm→pipeline  ↓兜底    →thinking
-        │       GLM推理   →custom→local
+        │       GLM推理   →custom
         └────────┬────────┘
                  ▼
         ┌────────────────────┐
@@ -111,9 +111,8 @@ git clone https://github.com/WxylkxyZz/ds-vision-skill.git ~/.codex/skills/ds-vi
 | `custom` | OpenAI 兼容中转 | `VISION_CUSTOM_BASE_URL` + `VISION_CUSTOM_API_KEY` + `VISION_CUSTOM_MODEL` |
 | `baidu-ocr` | 云端 OCR | `BAIDU_API_KEY` + `BAIDU_SECRET_KEY` |
 | `mineru` | PDF/文档解析 | `MINERU_TOKEN` |
-| `local` | 本地视觉模型 | `VISION_LOCAL_MODEL` |
 
-> **模型可覆盖**：`GLM_FAST_MODEL`（默认 `GLM-4V-Flash`）、`GLM_THINKING_MODEL`（默认 `glm-4.1v-thinking-flash`）、`VISION_LOCAL_MODEL`（默认 `qwen2.5-vl:3b`）。
+> **模型可覆盖**：`GLM_FAST_MODEL`（默认 `GLM-4V-Flash`）、`GLM_THINKING_MODEL`（默认 `glm-4.1v-thinking-flash`）。
 
 ## 🛠️ 使用
 
@@ -175,8 +174,8 @@ python scripts/run.py --status
 
 | 任务 | 降级链 |
 |---|---|
-| 视觉理解 | `glm → glm-thinking → custom → local` |
-| 复杂视觉推理 | `glm-thinking → custom → local` |
+| 视觉理解 | `glm → glm-thinking → custom` |
+| 复杂视觉推理 | `glm-thinking → custom` |
 | 文档解析 | `mineru vlm(推荐) → mineru pipeline(默认回退)`；`.html` 强制 `MinerU-HTML` |
 | OCR | `baidu-ocr → GLM 视觉推理` |
 
@@ -206,10 +205,9 @@ ds-vision-skill/
     │   ├── config.py         # Config 聚合 + 环境变量
     │   ├── cache.py          # 请求指纹缓存
     │   ├── utils.py          # 意图判断 / base64 / 文件类型
-    │   ├── local_probe.py    # 本地运行时探测
     │   └── channels/
     │       ├── base.py       # BaseChannel + Chain 降级链编排器
-    │       ├── vlm.py        # glm / glm-thinking / custom / local
+    │       ├── vlm.py        # glm / glm-thinking / custom
     │       ├── ocr.py        # 百度 OCR
     │       └── document.py   # MinerU 文档解析
     └── tests/                # 单元 + 降级链 mock 测试
@@ -221,7 +219,7 @@ ds-vision-skill/
 可以运行，但所有通道会按降级链尝试后失败。建议至少配置 `GLM_API_KEY`。
 
 **Q：还支持本地 Tesseract OCR 吗？**
-不再支持。本地 OCR 已移除，OCR 统一走百度云，失败时由 GLM 视觉推理兜底。如需离线/隐私优先的文字识别，请用本地视觉模型（Ollama / LM Studio / llama.cpp，经 `reason` 意图走 VLM 链）。
+不再支持。本地 OCR 已移除，OCR 统一走百度云，失败时由 GLM 视觉推理兜底。
 
 **Q：如何处理超大图片？**
 超过 15MB 的图片会被拒绝。建议先降采样，或使用文档通道（MinerU）处理扫描件。
@@ -231,10 +229,7 @@ PNG / JPG / JPEG / WEBP / GIF / BMP / TIFF。
 
 ## 🔒 隐私与安全
 
-云端通道会把图片/文档发送给对应服务商（智谱、百度、MinerU）。处理**合同、证件、医疗、财务**等敏感内容时，建议：
-
-1. 优先使用本地视觉模型（Ollama / LM Studio / llama.cpp）。
-2. 或在发送前取得用户明确确认。
+云端通道会把图片/文档发送给对应服务商（智谱、百度、MinerU）。处理**合同、证件、医疗、财务**等敏感内容时，建议在发送前取得用户明确确认。
 
 > 本仓库的 `.env` 已被 `.gitignore` 排除，提交代码时请勿包含真实密钥。
 

@@ -84,7 +84,6 @@ class Config:
     baidu_ocr: BaiduOCRConfig = field(default_factory=BaiduOCRConfig)
     cache_dir: str = CACHE_DIR
     mineru_token: str = ""
-    local_model: str = ""
 
 
 def load_config() -> Config:
@@ -107,24 +106,17 @@ def load_config() -> Config:
         ),
         cache_dir=get_env("DS_VISION_CACHE_DIR", CACHE_DIR),
         mineru_token=get_env("MINERU_TOKEN"),
-        local_model=get_env("VISION_LOCAL_MODEL"),
     )
 
 
 def status_report(cfg: Optional[Config] = None) -> Dict[str, Any]:
     """通道状态报告，供 preflight / ``--status`` 使用。"""
-    # 延迟导入避免循环依赖
-    from .local_probe import probe_local_runtimes
-
     cfg = cfg or load_config()
-    runtimes = probe_local_runtimes()
     return {
         "glm": bool(cfg.glm.api_key),
         "glm_thinking": bool(cfg.glm.api_key),
         "custom": bool(cfg.custom.api_key and cfg.custom.base_url and cfg.custom.model),
         "baidu_ocr": bool(cfg.baidu_ocr.api_key and cfg.baidu_ocr.secret_key),
         "mineru": bool(cfg.mineru_token),
-        "local": len(runtimes) > 0,
-        "local_runtimes": [r.name for r in runtimes],
         "cache_dir": cfg.cache_dir,
     }

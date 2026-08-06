@@ -70,22 +70,21 @@ def test_load_config_snapshot():
     assert cfg.glm.fast_model == "GLM-4V-Flash"
 
 
-def test_status_report_uses_probe(monkeypatch, cfg_factory):
-    """status_report 的 local 字段应来自 probe_local_runtimes，而非硬编码 True。"""
-    monkeypatch.setattr(
-        "ds_vision.local_probe.probe_local_runtimes",
-        lambda: [],
-    )
-    cfg = cfg_factory()
+def test_status_report_fields(cfg_factory):
+    """status_report 反映各通道配置态（无 local 字段——本地视觉模型已移除）。"""
+    cfg = cfg_factory()  # 全空
     report = config.status_report(cfg)
-    assert report["local"] is False  # 探测为空 -> False
-    assert report["local_runtimes"] == []
     assert report["glm"] is False
+    assert report["glm_thinking"] is False
+    assert report["custom"] is False
+    assert report["baidu_ocr"] is False
+    assert report["mineru"] is False
+    # 本地视觉模型已移除，不再有 local / local_runtimes 字段
+    assert "local" not in report
+    assert "local_runtimes" not in report
 
-    monkeypatch.setattr(
-        "ds_vision.local_probe.probe_local_runtimes",
-        lambda: [type("R", (), {"name": "ollama"})()],
-    )
-    report = config.status_report(cfg)
-    assert report["local"] is True
-    assert "ollama" in report["local_runtimes"]
+    cfg2 = cfg_factory(glm_api_key="k", baidu_api_key="bk", baidu_secret_key="bs")
+    report2 = config.status_report(cfg2)
+    assert report2["glm"] is True
+    assert report2["glm_thinking"] is True
+    assert report2["baidu_ocr"] is True

@@ -1,7 +1,6 @@
 """router：统一入口，自动路由 + 通道降级链编排。
 
 按 intent 构建降级链，跨链兜底时合并 attempts 记录。
-无原始端口探测——本地运行时探测统一走 local_probe。
 """
 
 from __future__ import annotations
@@ -17,7 +16,6 @@ from .channels.ocr import BaiduOCRChannel
 from .channels.vlm import VLMChannel
 from .config import Config
 from .envelope import Envelope, EXIT_GENERIC, EXIT_OK
-from .local_probe import probe_local_runtimes
 from .utils import guess_intent, is_image
 
 
@@ -26,8 +24,7 @@ def _build_vlm_chain(
 ) -> Chain:
     """构建 VLM 降级链。
 
-    顺序：primary(由 complex_ 决定) -> secondary(另一 GLM 通道) -> custom(已配置) ->
-    local(探测到运行时，注入首个 runtime)。
+    顺序：primary(由 complex_ 决定) -> secondary(另一 GLM 通道) -> custom(已配置)。
     """
     primary = "glm-thinking" if complex_ else "glm"
     secondary = "glm" if complex_ else "glm-thinking"
@@ -37,11 +34,8 @@ def _build_vlm_chain(
         VLMChannel(secondary),
         VLMChannel("custom"),
     ]
-    runtimes = probe_local_runtimes()
-    if runtimes:
-        desired.append(VLMChannel("local", runtime=runtimes[0]))
 
-    # 按可用性过滤：custom 需配置齐全；glm/glm-thinking/local 始终保留
+    # 按可用性过滤：custom 需配置齐全；glm/glm-thinking 始终保留
     # （缺失 key 会在 attempt 内返回 EXIT_AUTH 触发降级，而非被剔除）
     channels = [
         ch
@@ -60,7 +54,7 @@ def vlm_chain(
     complex_: bool = False,
     no_cache: bool = False,
 ) -> Tuple[Envelope, int]:
-    """VLM 降级链：glm -> glm-thinking -> custom -> local。"""
+    """VLM 降级链：glm -> glm-thinking -> custom。"""
     chain = _build_vlm_chain(cfg, complex_, prompt)
     return chain.run(image_path, prompt=prompt, cfg=cfg, cache=cache, no_cache=no_cache)
 

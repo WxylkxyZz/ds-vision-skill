@@ -7,7 +7,6 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from ds_vision.envelope import EXIT_AUTH, EXIT_NETWORK, EXIT_OK
-from ds_vision.local_probe import LocalRuntime
 from ds_vision.channels.base import Chain
 from ds_vision.channels.vlm import VLMChannel
 
@@ -54,25 +53,24 @@ def test_v2_glm_401_degrades_to_thinking(sample_image, tmp_cache, cfg_factory, m
     assert mock_post.call_count == 2
 
 
-def test_v3_all_cloud_fail_local_ok(sample_image, tmp_cache, cfg_factory, make_resp):
-    """全云端失败 -> 本地探测 mock 开 -> 本地成功。"""
-    cfg = cfg_factory(glm_api_key="k", local_model="qwen2.5-vl:3b")
-    runtime = LocalRuntime("ollama", "http://127.0.0.1:11434/v1/chat/completions", "127.0.0.1", 11434, "qwen2.5-vl:3b")
+def test_v3_glm_429_degrades_to_thinking(sample_image, tmp_cache, cfg_factory, make_resp):
+    """glm 限流(429) -> 降级 glm-thinking 成功。"""
+    cfg = cfg_factory(glm_api_key="k")
     chain = Chain(
-        [VLMChannel("glm"), VLMChannel("local", runtime=runtime)],
+        [VLMChannel("glm"), VLMChannel("glm-thinking")],
         task_type="image_reasoning",
     )
     responses = [
         make_resp(429),  # glm 限流
-        make_resp(200, {"choices": [{"message": {"content": "本地结果"}}]}),
+        make_resp(200, {"choices": [{"message": {"content": "thinking 结果"}}]}),
     ]
     with patch(POST, side_effect=responses):
         env, code = chain.run(
             sample_image, prompt="p", cfg=cfg, cache=tmp_cache, no_cache=True
         )
     assert code == EXIT_OK
-    assert env.result == "本地结果"
-    assert env.tool_used == "local:qwen2.5-vl:3b"
+    assert env.result == "thinking 结果"
+    assert env.tool_used == "glm-thinking:glm-4.1v-thinking-flash"
 
 
 def test_v4_all_fail_envelope(sample_image, tmp_cache, cfg_factory, make_resp):

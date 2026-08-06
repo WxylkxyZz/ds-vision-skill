@@ -1,13 +1,12 @@
 """VLM 视觉理解通道。
 
-通道：glm / glm-thinking / custom / local，统一走 OpenAI 兼容 chat/completions 接口，
-图片以 base64 data URL 传入。local 通道注入已探测的 LocalRuntime（见 local_probe）。
+通道：glm / glm-thinking / custom，统一走 OpenAI 兼容 chat/completions 接口，
+图片以 base64 data URL 传入。
 """
 
 from __future__ import annotations
 
-from typing import Any, Optional, Tuple
-from urllib.parse import urlsplit
+from typing import Any, Tuple
 
 import requests
 
@@ -23,7 +22,6 @@ from ..envelope import (
     EXIT_RATE_LIMIT,
     EXIT_REJECTED,
 )
-from ..local_probe import LocalRuntime
 from ..utils import encode_image_base64, file_size_mb
 from .base import BaseChannel
 
@@ -45,17 +43,15 @@ class VLMChannel(BaseChannel):
     """统一 VLM 通道。channel_name 决定模型与端点来源。
 
     Args:
-        channel_name: glm | glm-thinking | custom | local
-        runtime: local 通道时注入的 LocalRuntime（其余为 None）
+        channel_name: glm | glm-thinking | custom
     """
 
     task_type = "image_reasoning"
 
-    def __init__(self, channel_name: str, runtime: Optional[LocalRuntime] = None):
-        if channel_name not in ("glm", "glm-thinking", "custom", "local"):
+    def __init__(self, channel_name: str):
+        if channel_name not in ("glm", "glm-thinking", "custom"):
             raise VLMError(f"未知通道: {channel_name}", EXIT_GENERIC)
         self.channel_name = channel_name
-        self.runtime = runtime
         self.name = channel_name
 
     # -- 配置解析 -----------------------------------------------------------
@@ -66,21 +62,11 @@ class VLMChannel(BaseChannel):
             g = cfg.glm
             model = g.thinking_model if self.channel_name == "glm-thinking" else g.fast_model
             return g.base_url, g.api_key, model
-        if self.channel_name == "custom":
-            c = cfg.custom
-            if not (c.base_url and c.api_key and c.model):
-                raise VLMError("custom 通道未配置 VISION_CUSTOM_*", EXIT_AUTH)
-            return c.base_url, c.api_key, c.model
-        # local
-        if not self.runtime:
-            raise VLMError("local 通道未注入运行时", EXIT_AUTH)
-        model = cfg.local_model or self.runtime.default_model
-        if not model:
-            raise VLMError(
-                f"本地通道 {self.runtime.name} 需要设置 VISION_LOCAL_MODEL 指定模型",
-                EXIT_AUTH,
-            )
-        return self.runtime.base_url, "", model
+        # custom
+        c = cfg.custom
+        if not (c.base_url and c.api_key and c.model):
+            raise VLMError("custom 通道未配置 VISION_CUSTOM_*", EXIT_AUTH)
+        return c.base_url, c.api_key, c.model
 
     # -- 主流程 -------------------------------------------------------------
 
@@ -137,7 +123,7 @@ class VLMChannel(BaseChannel):
                 )
                 return env, EXIT_OK
 
-        if not api_key and self.channel_name != "local":
+        if not api_key:
             return (
                 envelope.fail(
                     "image_reasoning",

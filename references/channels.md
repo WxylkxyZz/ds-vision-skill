@@ -1,6 +1,6 @@
 # 通道配置表
 
-记录 ds-vision-skill 支持的视觉、OCR、文档解析和本地通道。更新模型 ID、注册入口或环境变量时，优先改这里。
+记录 ds-vision-skill 支持的视觉、OCR、文档解析通道。更新模型 ID、注册入口或环境变量时，优先改这里。
 
 ## 云端视觉通道
 
@@ -26,19 +26,6 @@
 
 > `model_version` 三个合法取值（经 [官方文档](https://mineru.net/apiManage/docs) 核实）：`pipeline`（默认）/ `vlm`（推荐）/ `MinerU-HTML`（HTML 文件专用）。非 HTML 文件可选 `pipeline`/`vlm`，HTML 文件须用 `MinerU-HTML`。映射见 `scripts/ds_vision/channels/document.py` 顶部 `MODE_TO_MODEL_VERSION`。
 
-## 本地模型通道
-
-| 运行时 | 默认端口 | 说明 |
-|---|---:|---|
-| Ollama | `11434` | 推荐本地运行时 |
-| LM Studio | `1234` | OpenAI 兼容服务 |
-| llama.cpp | `8080` | `llama-server` 兼容服务 |
-
-建议模型（`VISION_LOCAL_MODEL`）：
-- VRAM ≥ 8GB：`qwen2.5-vl:7b`、`llama3.2-vision:11b`
-- VRAM ≥ 4GB：`qwen2.5-vl:3b`、`minicpm-v`、`moondream`
-- 无 GPU：`moondream`、`smolvlm`
-
 ## 配置方式
 
 密钥通过环境变量注入，或在 skill 根目录创建 `.env`：
@@ -54,7 +41,6 @@ MINERU_TOKEN=
 VISION_CUSTOM_BASE_URL=
 VISION_CUSTOM_API_KEY=
 VISION_CUSTOM_MODEL=
-VISION_LOCAL_MODEL=qwen2.5-vl:3b
 # DS_VISION_CACHE_DIR=~/.ds-vision-py/cache
 ```
 
@@ -66,8 +52,8 @@ python scripts/run.py --status
 
 ## 路由优先级
 
-- 图片理解：`glm → glm-thinking → custom → local`
-- 复杂视觉推理：`glm-thinking → custom → local`
+- 图片理解：`glm → glm-thinking → custom`
+- 复杂视觉推理：`glm-thinking → custom`
 - 文档解析：`mineru-vlm → mineru-pipeline`（`.html` 强制 `MinerU-HTML`）
 - OCR：`baidu-ocr → GLM 视觉推理`
 

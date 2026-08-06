@@ -71,7 +71,6 @@ def cfg_factory(tmp_cache_dir):
         baidu_api_key="",
         baidu_secret_key="",
         mineru_token="",
-        local_model="",
     ):
         return Config(
             glm=GLMConfig(api_key=glm_api_key),
@@ -85,7 +84,6 @@ def cfg_factory(tmp_cache_dir):
             baidu_ocr=BaiduOCRConfig(api_key=baidu_api_key, secret_key=baidu_secret_key),
             cache_dir=tmp_cache_dir,
             mineru_token=mineru_token,
-            local_model=local_model,
         )
 
     return _make
